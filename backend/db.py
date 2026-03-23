@@ -12,7 +12,12 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    # Force SSL regardless of whether DATABASE_URL already contains sslmode.
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor,
+        sslmode="require",
+    )
 
 
 def save_item(item: dict):

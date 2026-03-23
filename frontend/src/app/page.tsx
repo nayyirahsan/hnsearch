@@ -1,5 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import SearchBar from "@/components/SearchBar";
 import ResultCard from "@/components/ResultCard";
 import Filters from "@/components/Filters";
@@ -44,7 +45,15 @@ export default function Home() {
       <div className="max-w-2xl mx-auto px-4 py-16">
         {/* Header */}
         <div className="text-center mb-10">
-          <h1 className="text-5xl font-bold text-orange-500 tracking-tight mb-2">HNSearch</h1>
+          <div className="flex justify-center items-center gap-3 mb-2 flex-wrap">
+            <h1 className="text-5xl font-bold text-orange-500 tracking-tight">HNSearch</h1>
+            <Link
+              href="/analytics"
+              className="text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors self-end pb-1"
+            >
+              Analytics
+            </Link>
+          </div>
           <p className="text-gray-400 text-sm">Search 100,000+ Hacker News posts · built from scratch</p>
         </div>
 

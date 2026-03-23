@@ -7,17 +7,60 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from query_engine.query import search
 from db import get_analytics
 
 app = FastAPI(title="HNSearch API", version="0.1.0")
+DEFAULT_FRONTEND_URL = "http://localhost:3000"
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("FRONTEND_URL", DEFAULT_FRONTEND_URL).split(",")
+    if origin.strip()
+]
+if not allowed_origins:
+    allowed_origins = [DEFAULT_FRONTEND_URL]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=allowed_origins,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+@app.get("/", response_class=HTMLResponse)
+def root():
+    """Avoid 404 when opening http://localhost:8000/ in a browser; UI runs on the frontend port."""
+    ui = allowed_origins[0] if allowed_origins else DEFAULT_FRONTEND_URL
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>HNSearch API</title>
+  <style>
+    body {{ font-family: system-ui, sans-serif; max-width: 36rem; margin: 3rem auto; padding: 0 1rem; color: #374151; }}
+    h1 {{ color: #f97316; font-size: 1.5rem; }}
+    a {{ color: #f97316; }}
+    p {{ line-height: 1.5; }}
+    ul {{ line-height: 1.8; }}
+  </style>
+</head>
+<body>
+  <h1>HNSearch API</h1>
+  <p>This is the backend. The search UI is served separately.</p>
+  <p><a href="{ui}">Open the app →</a></p>
+  <p><strong>Endpoints:</strong></p>
+  <ul>
+    <li><a href="/docs">/docs</a> — interactive API docs</li>
+    <li><a href="/health">/health</a> — health check</li>
+    <li><a href="/analytics">/analytics</a> — index and usage stats (JSON)</li>
+    <li><a href="/search?q=python&limit=10&offset=0">/search?q=python&limit=10&offset=0</a> — sample search (JSON)</li>
+  </ul>
+</body>
+</html>"""
 
 
 @app.get("/search")
