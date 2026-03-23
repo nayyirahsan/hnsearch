@@ -3,13 +3,20 @@ FastAPI application — exposes search, analytics, and health endpoints.
 """
 import sys
 import os
+import traceback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from query_engine.query import search
-from db import get_analytics
+try:
+    from fastapi import FastAPI, Query
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import HTMLResponse
+    from query_engine.query import search
+    from db import get_analytics
+except Exception as e:
+    # Surface startup/import failures in Render logs before process exits.
+    print(f"[startup import error] {e}", flush=True)
+    traceback.print_exc()
+    raise
 
 app = FastAPI(title="HNSearch API", version="0.1.0")
 DEFAULT_FRONTEND_URL = "http://localhost:3000"
