@@ -12,12 +12,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 def get_conn():
-    # Force SSL regardless of whether DATABASE_URL already contains sslmode.
-    return psycopg2.connect(
-        DATABASE_URL,
-        cursor_factory=RealDictCursor,
-        sslmode="require",
-    )
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
 def save_item(item: dict):
@@ -37,38 +32,6 @@ def save_item(item: dict):
                 "by": item.get("by"),
                 "time": item.get("time"),
             })
-
-
-def save_items_bulk(items: list[dict], *, page_size: int = 500):
-    """Batch insert documents to reduce connection/chattiness overhead."""
-    if not items:
-        return
-    rows = [
-        (
-            item.get("id"),
-            item.get("type"),
-            item.get("title"),
-            item.get("text"),
-            item.get("url"),
-            item.get("score"),
-            item.get("by"),
-            item.get("time"),
-        )
-        for item in items
-    ]
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            execute_values(
-                cur,
-                """
-                INSERT INTO documents (id, type, title, text, url, score, by, time)
-                VALUES %s
-                ON CONFLICT (id) DO NOTHING
-                """,
-                rows,
-                page_size=page_size,
-            )
-        conn.commit()
 
 
 def get_all_documents():

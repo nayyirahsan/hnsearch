@@ -3,35 +3,19 @@ FastAPI application — exposes search, analytics, and health endpoints.
 """
 import sys
 import os
-import traceback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-try:
-    from fastapi import FastAPI, Query
-    from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import HTMLResponse
-    from query_engine.query import search
-    from db import get_analytics
-except Exception as e:
-    # Surface startup/import failures in Render logs before process exits.
-    print(f"[startup import error] {e}", flush=True)
-    traceback.print_exc()
-    raise
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from query_engine.query import search
+from db import get_analytics
 
 app = FastAPI(title="HNSearch API", version="0.1.0")
-DEFAULT_FRONTEND_URL = "http://localhost:3000"
-
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv("FRONTEND_URL", DEFAULT_FRONTEND_URL).split(",")
-    if origin.strip()
-]
-if not allowed_origins:
-    allowed_origins = [DEFAULT_FRONTEND_URL]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -40,7 +24,7 @@ app.add_middleware(
 @app.get("/", response_class=HTMLResponse)
 def root():
     """Avoid 404 when opening http://localhost:8000/ in a browser; UI runs on the frontend port."""
-    ui = allowed_origins[0] if allowed_origins else DEFAULT_FRONTEND_URL
+    ui = os.getenv("FRONTEND_URL", "http://localhost:3000")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>

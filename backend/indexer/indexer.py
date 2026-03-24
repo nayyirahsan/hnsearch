@@ -18,10 +18,6 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from collections import defaultdict
-from nltk_bootstrap import ensure_stopwords
-
-ensure_stopwords()
-
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 from db import (
@@ -102,5 +98,12 @@ def build_index():
 
 
 if __name__ == "__main__":
+    import ssl
+    import nltk
+
+    # macOS / some envs: SSL cert issues when downloading NLTK data
+    ssl._create_default_https_context = ssl._create_unverified_context
+    nltk.download("stopwords", quiet=True)
+
     logging.basicConfig(level=logging.INFO)
     build_index()

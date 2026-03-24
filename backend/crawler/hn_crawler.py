@@ -7,9 +7,8 @@ import asyncio
 import logging
 import sys
 import os
-import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db import save_items_bulk
+from db import save_item
 
 HN_API = "https://hacker-news.firebaseio.com/v0"
 logger = logging.getLogger(__name__)
@@ -34,84 +33,18 @@ async def crawl(limit: int = 100_000):
         start_id = max_id - limit
         logger.info(f"Crawling items {start_id} to {max_id}")
 
-        semaphore = asyncio.Semaphore(10)  # balance speed with hosted DB connection limits
-        processed = 0
-        progress_lock = asyncio.Lock()
-        save_queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=3000)
-        writer_done = asyncio.Event()
-        write_batch_size = 300
-
-        def save_batch_with_retry(batch: list[dict]) -> None:
-            last_err: Exception | None = None
-            for attempt in range(3):
-                try:
-                    save_items_bulk(batch)
-                    return
-                except Exception as e:
-                    last_err = e
-                    time.sleep(0.4 * (attempt + 1))
-            raise RuntimeError(f"bulk save failed after retries: {last_err}")
-
-        async def writer():
-            loop = asyncio.get_event_loop()
-            batch: list[dict] = []
-
-            while True:
-                if len(batch) >= write_batch_size:
-                    try:
-                        await loop.run_in_executor(None, save_batch_with_retry, batch.copy())
-                    except Exception as e:
-                        logger.warning(f"Failed to save batch of {len(batch)} items: {e}")
-                    finally:
-                        for _ in batch:
-                            save_queue.task_done()
-                        batch.clear()
-                    continue
-
-                if writer_done.is_set() and save_queue.empty():
-                    if batch:
-                        try:
-                            await loop.run_in_executor(None, save_batch_with_retry, batch.copy())
-                        except Exception as e:
-                            logger.warning(f"Failed to save final batch of {len(batch)} items: {e}")
-                        finally:
-                            for _ in batch:
-                                save_queue.task_done()
-                            batch.clear()
-                    break
-
-                try:
-                    item = await asyncio.wait_for(save_queue.get(), timeout=1.0)
-                    batch.append(item)
-                except TimeoutError:
-                    if batch:
-                        try:
-                            await loop.run_in_executor(None, save_batch_with_retry, batch.copy())
-                        except Exception as e:
-                            logger.warning(f"Failed to save timed batch of {len(batch)} items: {e}")
-                        finally:
-                            for _ in batch:
-                                save_queue.task_done()
-                            batch.clear()
-
-        writer_task = asyncio.create_task(writer())
+        semaphore = asyncio.Semaphore(50)  # max 50 concurrent requests
 
         async def fetch_and_save(item_id):
-            nonlocal processed
             async with semaphore:
                 item = await fetch_item(client, item_id)
                 if item and item.get("type") in ("story", "comment", "ask", "show", "job"):
-                    await save_queue.put(item)
-                async with progress_lock:
-                    processed += 1
-                    if processed % 1000 == 0:
-                        logger.info(f"Processed {processed}/{limit} items...")
+                    # save_item is sync — run in thread pool to avoid blocking the event loop
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, save_item, item)
 
         tasks = [fetch_and_save(i) for i in range(start_id, max_id)]
         await asyncio.gather(*tasks)
-        writer_done.set()
-        await save_queue.join()
-        await writer_task
         logger.info("Crawl complete.")
 
 if __name__ == "__main__":

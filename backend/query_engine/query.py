@@ -11,10 +11,6 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nltk_bootstrap import ensure_stopwords
-
-ensure_stopwords()
-
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 from db import lookup_term, fetch_documents_by_ids, log_search

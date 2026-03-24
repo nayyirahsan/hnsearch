@@ -1,6 +1,6 @@
 import type { Filters, SearchResponse, AnalyticsData } from "./types";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export async function search(
   query: string,
@@ -14,13 +14,13 @@ export async function search(
   if (filters.dateFrom) params.set("date_from", filters.dateFrom);
   if (filters.dateTo) params.set("date_to", filters.dateTo);
 
-  const r = await fetch(`${API}/api/search?${params}`);
+  const r = await fetch(`${API}/search?${params}`);
   if (!r.ok) throw new Error("Search request failed");
   return r.json();
 }
 
 export async function getAnalytics(): Promise<AnalyticsData> {
-  const r = await fetch(`${API}/api/analytics`);
+  const r = await fetch(`${API}/analytics`);
   if (!r.ok) throw new Error("Analytics request failed");
   return r.json();
 }
