@@ -128,11 +128,14 @@ export async function GET(request: NextRequest) {
     const latencyMs = Date.now() - started;
 
     // Non-fatal logging to match backend behavior.
-    await supabase.from("search_logs").insert({
+    const { error: logError } = await supabase.from("search_logs").insert({
       query: q,
       result_count: total,
       latency_ms: latencyMs,
     });
+    if (logError) {
+      console.error("search_logs insert failed:", logError.message);
+    }
 
     return NextResponse.json({
       results,
