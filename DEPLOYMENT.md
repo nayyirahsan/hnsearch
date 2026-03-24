@@ -2,8 +2,7 @@
 
 This guide covers production deployment of HNSearch using:
 - **Supabase** for PostgreSQL
-- **Render** for the FastAPI backend
-- **Vercel** for the Next.js frontend
+- **Vercel** for both UI + API routes
 - **UptimeRobot** for health monitoring
 
 ## 1) Supabase database setup + migration
@@ -55,48 +54,35 @@ python indexer/indexer.py
    - `SELECT COUNT(*) FROM documents;`
    - `SELECT COUNT(*) FROM inverted_index;`
 
-## 3) Deploy backend to Render
-
-1. Push your code to GitHub.
-2. In [Render](https://render.com/), create a new **Web Service** from your repo.
-3. Configure:
-   - **Root Directory**: `backend` (if prompted)
-   - **Runtime**: Python
-   - **Build Command**:
-     - `pip install -r requirements.txt && python -c "import nltk; nltk.download('stopwords')"`
-   - **Start Command**:
-     - `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
-4. Add environment variables in Render:
-   - `DATABASE_URL` = your Supabase connection URI
-   - `FRONTEND_URL` = `http://localhost:3000` (temporary; update in step 5)
-5. Deploy and verify:
-   - `https://<your-render-service>.onrender.com/health` returns `{"status":"ok"}`
-
-## 4) Deploy frontend to Vercel
+## 3) Deploy frontend + API routes to Vercel
 
 1. In [Vercel](https://vercel.com/), import the same repo.
 2. Set **Root Directory** to `frontend` if needed.
-3. Add environment variable:
-   - `NEXT_PUBLIC_API_URL` = `https://<your-render-service>.onrender.com`
+3. Add environment variables:
+   - `SUPABASE_URL` = your Supabase project URL (`https://<project-ref>.supabase.co`)
+   - `SUPABASE_ANON_KEY` = your Supabase anon key
+   - Optional: `NEXT_PUBLIC_API_URL` (leave empty to use same-origin `/api/*` routes)
 4. Deploy.
 5. Verify:
    - Home page loads
    - Search works
    - Analytics page loads (`/analytics`)
+   - API routes respond:
+     - `https://<your-vercel-app>.vercel.app/api/search?q=python`
+     - `https://<your-vercel-app>.vercel.app/api/analytics`
 
-## 5) Update FRONTEND_URL in Render after Vercel is live
+## 4) Data refresh workflow (local)
 
-1. Copy your Vercel production URL (for example `https://your-app.vercel.app`).
-2. In Render backend service settings, update:
-   - `FRONTEND_URL` = your Vercel URL
-3. Redeploy/restart the Render service.
-4. Confirm CORS works by running a search from the Vercel-hosted frontend.
+1. Keep using local Python scripts to refresh data in Supabase:
+   - `python backend/crawler/hn_crawler.py`
+   - `python backend/indexer/indexer.py`
+2. Because Vercel API routes read Supabase directly, new data is live immediately after index updates.
 
-## 6) UptimeRobot health checks every 14 minutes
+## 5) UptimeRobot health checks every 14 minutes
 
 1. Create a monitor in [UptimeRobot](https://uptimerobot.com/):
    - **Monitor Type**: HTTP(s)
-   - **URL**: `https://<your-render-service>.onrender.com/health`
+   - **URL**: `https://<your-vercel-app>.vercel.app/api/analytics`
    - **Monitoring Interval**: 14 minutes
 2. Save the monitor.
 3. Verify status becomes **Up**.

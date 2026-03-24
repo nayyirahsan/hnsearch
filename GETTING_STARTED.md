@@ -45,25 +45,25 @@ python indexer/indexer.py
 # Takes ~5-10 minutes for 100k documents.
 ```
 
-## 5. Start the API
-
-```bash
-uvicorn api.main:app --reload
-# API running at http://localhost:8000
-# Docs at http://localhost:8000/docs
-```
-
-## 6. Frontend setup
+## 5. Frontend + API (Next.js) setup
 
 ```bash
 cd ../frontend
 npm install
 
 cp .env.example .env.local
-# NEXT_PUBLIC_API_URL=http://localhost:8000
+# Add Supabase credentials for Next.js API routes:
+# SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_ANON_KEY=<your-anon-key>
+#
+# Optional:
+# NEXT_PUBLIC_API_URL= (leave empty for same-origin /api routes)
 
 npm run dev
 # App running at http://localhost:3000
+# API routes at:
+# - http://localhost:3000/api/search?q=python
+# - http://localhost:3000/api/analytics
 ```
 
 ## Project structure
@@ -73,17 +73,20 @@ hnsearch/
 ├── backend/
 │   ├── crawler/hn_crawler.py      ← fetches items from HN Firebase API
 │   ├── indexer/indexer.py         ← builds inverted index + TF-IDF scores
-│   ├── query_engine/query.py      ← AND/OR search, ranking, filters
-│   ├── api/main.py                ← FastAPI: /search, /analytics, /health
+│   ├── query_engine/query.py      ← legacy Python search logic reference
+│   ├── api/main.py                ← legacy FastAPI app (no longer required for Vercel deploy)
 │   ├── db.py                      ← all database helpers (raw SQL)
 │   ├── migrations/001_initial.sql ← schema: documents, inverted_index, search_logs
 │   └── requirements.txt
 └── frontend/
     ├── src/
-    │   ├── app/
-    │   │   ├── layout.tsx
-    │   │   ├── page.tsx           ← main search UI
-    │   │   └── globals.css
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── search/route.ts    ← Next.js API search endpoint
+│   │   │   └── analytics/route.ts ← Next.js API analytics endpoint
+│   │   ├── layout.tsx
+│   │   ├── page.tsx               ← main search UI
+│   │   └── globals.css
     │   ├── components/
     │   │   ├── SearchBar.tsx      ← debounced live search
     │   │   ├── ResultCard.tsx     ← result with highlighting
@@ -98,5 +101,5 @@ hnsearch/
 
 ## Deployment
 
-- **Backend**: [Railway](https://railway.app) — connect your GitHub repo, add `DATABASE_URL` env var, set start command to `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
-- **Frontend**: [Vercel](https://vercel.com) — import repo, set `NEXT_PUBLIC_API_URL` to your Railway backend URL
+- **App + API**: [Vercel](https://vercel.com) — deploy `frontend/` and set `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+- **Data pipeline**: run `backend/crawler/hn_crawler.py` and `backend/indexer/indexer.py` locally against Supabase when you want to refresh data
