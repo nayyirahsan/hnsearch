@@ -20,6 +20,19 @@ function toInt(value: string | null, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Search failed";
+  }
+}
+
 async function fetchPostings(term: string, supabase: ReturnType<typeof getSupabase>): Promise<Map<number, number>> {
   const { data, error } = await supabase
     .from("inverted_index")
@@ -144,7 +157,6 @@ export async function GET(request: NextRequest) {
       latency_ms: latencyMs,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Search failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

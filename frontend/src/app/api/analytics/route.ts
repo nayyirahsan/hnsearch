@@ -7,6 +7,19 @@ type SearchLogRow = {
   created_at: string | null;
 };
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Analytics failed";
+  }
+}
+
 async function countDocuments(supabase: ReturnType<typeof getSupabase>): Promise<number> {
   const { count, error } = await supabase.from("documents").select("id", { count: "exact", head: true });
   if (error) throw error;
@@ -112,7 +125,6 @@ export async function GET() {
       avg_latency_ms: avgLatencyMs,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Analytics failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
