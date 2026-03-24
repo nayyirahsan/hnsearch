@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PorterStemmer } from "natural";
-import { eng, removeStopwords } from "stopword";
-import { supabase } from "@/lib/supabaseServer";
+import { getSupabase } from "@/lib/supabaseServer";
 
 type Posting = { doc_id: number; score: number };
 type SearchDoc = {
@@ -15,6 +13,15 @@ type SearchDoc = {
   time: number;
 };
 
+const STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
+  "if", "in", "into", "is", "it", "no", "not", "of", "on", "or",
+  "such", "that", "the", "their", "then", "there", "these", "they",
+  "this", "to", "was", "will", "with", "from", "you", "your", "we",
+  "our", "i", "me", "my", "he", "she", "his", "her", "them", "who",
+  "what", "when", "where", "why", "how",
+]);
+
 function toInt(value: string | null, fallback: number): number {
   if (!value) return fallback;
   const n = Number.parseInt(value, 10);
@@ -24,11 +31,22 @@ function toInt(value: string | null, fallback: number): number {
 function tokenizeQuery(query: string): string[] {
   const normalized = query.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
   const raw = normalized.split(/\s+/).filter(Boolean);
-  const filtered = removeStopwords(raw, eng).filter((t) => t.length > 1);
-  return filtered.map((t) => PorterStemmer.stem(t));
+  const filtered = raw.filter((t) => t.length > 1 && !STOP_WORDS.has(t));
+  return filtered.map(stemToken);
 }
 
-async function fetchPostings(term: string): Promise<Map<number, number>> {
+function stemToken(token: string): string {
+  // Lightweight stemmer to avoid heavy NLP deps in Vercel bundles.
+  if (token.length <= 3) return token;
+  if (token.endsWith("ing") && token.length > 5) return token.slice(0, -3);
+  if (token.endsWith("ed") && token.length > 4) return token.slice(0, -2);
+  if (token.endsWith("ies") && token.length > 4) return `${token.slice(0, -3)}y`;
+  if (token.endsWith("es") && token.length > 4) return token.slice(0, -2);
+  if (token.endsWith("s") && token.length > 3) return token.slice(0, -1);
+  return token;
+}
+
+async function fetchPostings(term: string, supabase: ReturnType<typeof getSupabase>): Promise<Map<number, number>> {
   const { data, error } = await supabase
     .from("inverted_index")
     .select("doc_id,score")
@@ -40,6 +58,7 @@ async function fetchPostings(term: string): Promise<Map<number, number>> {
 }
 
 async function fetchFilteredDocuments(
+  supabase: ReturnType<typeof getSupabase>,
   rankedIds: number[],
   contentType: string | null,
   minScore: number | null,
@@ -91,12 +110,13 @@ export async function GET(request: NextRequest) {
   const dateToVal = Number.isNaN(dateTo as number) ? null : dateTo;
 
   try {
+    const supabase = getSupabase();
     const tokens = tokenizeQuery(q);
     if (!tokens.length) {
       return NextResponse.json({ results: [], total: 0, query_tokens: [], latency_ms: Date.now() - started });
     }
 
-    const postingMaps = await Promise.all(tokens.map((t) => fetchPostings(t)));
+    const postingMaps = await Promise.all(tokens.map((t) => fetchPostings(t, supabase)));
     const docScores = new Map<number, number>();
 
     // AND first: intersection across all posting lists.
@@ -121,7 +141,14 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b[1] - a[1])
       .map(([id]) => id);
 
-    const documents = await fetchFilteredDocuments(rankedIds, type, minScoreVal, dateFromVal, dateToVal);
+    const documents = await fetchFilteredDocuments(
+      supabase,
+      rankedIds,
+      type,
+      minScoreVal,
+      dateFromVal,
+      dateToVal
+    );
     const total = documents.length;
     const results = documents.slice(offset, offset + limit);
     const latencyMs = Date.now() - started;

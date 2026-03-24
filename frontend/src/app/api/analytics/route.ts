@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseServer";
+import { getSupabase } from "@/lib/supabaseServer";
 
 type SearchLogRow = {
   query: string | null;
@@ -7,13 +7,13 @@ type SearchLogRow = {
   created_at: string | null;
 };
 
-async function countDocuments(): Promise<number> {
+async function countDocuments(supabase: ReturnType<typeof getSupabase>): Promise<number> {
   const { count, error } = await supabase.from("documents").select("id", { count: "exact", head: true });
   if (error) throw error;
   return count ?? 0;
 }
 
-async function countUniqueTerms(): Promise<number> {
+async function countUniqueTerms(supabase: ReturnType<typeof getSupabase>): Promise<number> {
   const pageSize = 10000;
   let from = 0;
   const terms = new Set<string>();
@@ -38,7 +38,7 @@ async function countUniqueTerms(): Promise<number> {
   return terms.size;
 }
 
-async function fetchSearchLogs(days: number): Promise<SearchLogRow[]> {
+async function fetchSearchLogs(supabase: ReturnType<typeof getSupabase>, days: number): Promise<SearchLogRow[]> {
   const start = new Date();
   start.setUTCDate(start.getUTCDate() - days);
 
@@ -67,10 +67,11 @@ async function fetchSearchLogs(days: number): Promise<SearchLogRow[]> {
 
 export async function GET() {
   try {
+    const supabase = getSupabase();
     const [totalDocs, totalTerms, logs] = await Promise.all([
-      countDocuments(),
-      countUniqueTerms(),
-      fetchSearchLogs(30),
+      countDocuments(supabase),
+      countUniqueTerms(supabase),
+      fetchSearchLogs(supabase, 30),
     ]);
 
     const topQueryCounts = new Map<string, number>();
